@@ -1,0 +1,1 @@
+function batchtrainer(data_train,labels_train, data_test, labels_test, plot_pts, two_feet, ttot)
