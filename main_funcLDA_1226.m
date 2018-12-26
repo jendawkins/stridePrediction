@@ -40,36 +40,18 @@ fin_mat3 = data_fin;
 z = find(fin_mat3(:,8)==1);
 z2 = find(fin_mat3(:,end-1)==1);
 
-r2 = sqrt(data_fin(:,2).^2 + data_fin(:,3).^2);
-r20 = sqrt(data_fin(:,9).^2 + data_fin(:,10).^2);
-plot(data_fin(:,1), r2,'m');
-hold on
-scatter(data_fin(z,1), zeros([1,length(z)]),'r*');
-plot(data_fin(:,1), r20,'b');
-scatter(data_fin(z2,1), zeros([1,length(z2)]),'g*');
-%% start here!
+% r2 = sqrt(data_fin(:,2).^2 + data_fin(:,3).^2);
+% r20 = sqrt(data_fin(:,9).^2 + data_fin(:,10).^2);
+% plot(data_fin(:,1), r2,'m');
+% hold on
+% scatter(data_fin(z,1), zeros([1,length(z)]),'r*');
+% plot(data_fin(:,1), r20,'b');
+% scatter(data_fin(z2,1), zeros([1,length(z2)]),'g*');
+
+
 % fix discrepancy between feet
 % Problem: I can use two feet like I do below, but predictions are pretty
 % bad since I'm calculating a random window. Need to use prior foot's swing
-
-% this should be just: if I have stride to stride data on right foot and
-% I'm predicting on right swing, I just need to predict on left foot from
-% when the right food HS starts to +X sample
-%  ^ might have fixed this changing window in createFeatureMatrix2
-
-% minlen = min([length(z) length(z2)]);
-% % for zi = 1:max([length(z) length(z2)])
-% zi = 1;
-% while zi <= min([length(z) length(z2)]) 
-%     check = z2(zi) - z(zi);
-%     if check < 0
-%         z = [z(1:zi-1); z(zi-1) + round((z(zi)-z(zi-1))/2); z(zi:end)];
-%     else
-%         zi = zi+1;
-%     end
-% end
-%         
-% idd = z2(1:minlen)-z(1:minlen);
 
 y = z(2:end)-z(1:end-1);
 IQR = prctile(y,75)-prctile(y,25);
@@ -128,12 +110,6 @@ for j = 2:(length(z)-1)
     end
 end
 
-% idx2a = knnsearch(z2, zest2);
-% idx1a = knnsearch(z, zest1);
-% 
-% z2new = unique(z2(idx2a));
-% z1new = unique(z(idx1a));
-
 y1 = z(2:end)-z(1:end-1);
 y2 = z2(2:end)-z2(1:end-1);
 
@@ -152,6 +128,11 @@ data_in2 = data_in;
 data_in2(:,7) = zeros(size(data_in2(:,7)));
 data_in2(:,end) = zeros(size(data_in2(:,7)));
 
+% just changed this but didnt work -- start here
+% zerolabs = [find(labels1==0)-1; find(labels2==0)-1];
+% z(zerolabs)=[];
+% z2(zerolabs) = [];
+
 data_in2(z,7) = ones(size(z));
 data_in2(z2,end) = ones(size(z2));
 
@@ -167,7 +148,7 @@ strides_to_delete2 = [find(y2>prctile(y2,75)+IQR*2); find(y2<prctile(y2,25)-IQR*
 strides_to_delete1 = [strides_to_delete1; find(labels1==0)-1];
 strides_to_delete2 = [strides_to_delete2; find(labels2==0)-1];
 
-
+data_in = data_in2;
 % Calculate angels from data???
 
 data_in(stPF,7)=2; data_in(edPF,7)=3;
@@ -265,6 +246,9 @@ for tf = 1:2
 %             title('Static prediction training and labels');
             
             % train
+            stridesStatic = stridesAll(sample_strides);
+            stridesOtherStatic = stridesAllOther(sample_strides);
+            ftmat_train_static = createFeatureMatrix2(stridesStatic, stridesOtherStatic, prediction_signals, TWO_FEET);
             ftmat_train = createFeatureMatrix2(strides, stridesOther, prediction_signals, TWO_FEET);
             
             rperm = randperm(size(ftmat_train,1));
@@ -311,10 +295,13 @@ for tf = 1:2
                     stridesTest = FtMat.([foot_names{ft}]);
                     stridesTestOther = FtMat.([foot_names{setdiff(1:2,ft)}]);
                     ftmat_test = createFeatureMatrix2(stridesTest, stridesTestOther, prediction_signals, TWO_FEET);
+                    
                     guess = predict(Mdl, ftmat_test);
                     data_pred = [pt_in];
                     guess_vec = [guess_vec; guess];
-                    
+                    if all(ftmat_test ~= ftmat_test_nr(labiter,:))
+                        disp('unequal matrices')
+                    end
                     if plot_pts
                         local_t = start:length(stridesTest.a1Raw)+start-1;
                         local_tOther = start:length(stridesTestOther.a1Raw)+start-1;
@@ -371,19 +358,17 @@ end
 figure;
 plot(data_in2(:,1))
 hold on
-scatter(find(data_in2(:,7)==1), zeros([length(find(data_in2(:,7)==1)),1]),'Filled'); hold on; 
-scatter(find(data_in2(:,end)==1),ones([length(find(data_in2(:,end)==1)),1]),'Filled')
+scatter(find(data_in2(:,7)==1), [labels1(2:end); 0].*ones([length(find(data_in2(:,7)==1)),1]),'Filled','r'); hold on; 
+scatter(find(data_in2(:,end)==1),[labels2(2:end); 0].*ones([length(find(data_in2(:,end)==1)),1]),'Filled','g')
 stMark1 = find(data_in2(:,7)==1);
 stMark2 = find(data_in2(:,end)==1);
-
-%% ughhh need to write this out
 
 for i = 1:length(stMark1)-1
     if any(i==strides_to_delete1)
         continue
     else
         hold on
-        plot(stMark1(i):stMark1(i+1), zeros([length(stMark1(i):stMark1(i+1)),1]),'-r');
+        plot(stMark1(i):stMark1(i+1), labels1(i+1)*ones([length(stMark1(i):stMark1(i+1)),1]),'-r');
     end
 end
 
@@ -392,7 +377,7 @@ for i = 1:length(stMark2)-1
         continue
     else
         hold on
-        plot(stMark2(i):stMark2(i+1), ones([length(stMark2(i):stMark2(i+1)),1]),'-g');
+        plot(stMark2(i):stMark2(i+1), labels2(i+1)*ones([length(stMark2(i):stMark2(i+1)),1]),'-g');
     end
 end
     

@@ -54,7 +54,7 @@ for foot = 1:2
     InitStance = find(data(:,foot*7)==1);
     cycle_time = InitStance(2:end) - InitStance(1:end-1);
     
-%     InitSwing = find(data(:,foot*7)==3);
+    %     InitSwing = find(data(:,foot*7)==3);
     InitPF = InitStance(1:end-1) + round(.3*cycle_time);
     InitSwing = InitStance(1:end-1) + round(.6*cycle_time);
     if foot == 1
@@ -75,19 +75,17 @@ for foot = 1:2
         end
     end
     
-%     names = {'aAccX','aAccY','aAccZ','gVelX','gVelY','gVelZ'};
+    %     names = {'aAccX','aAccY','aAccZ','gVelX','gVelY','gVelZ'};
     for nm = 1:length(raw_sensor_outputs)
-        for k = 1:length(InitStance)-1
+        for k = 1:length(InitStance)
             % foot = 1 : 1:6; foot = 2: 8:13
-            try
-                strideList(k).globalInitStanceSample = InitStance(k);
-            end
-            try
+            strideList(k).globalInitStanceSample = InitStance(k);
+            if k < length(InitStance)
                 strideList(k).globalInitSwingSample = InitSwing(k);
-            end
-            try
                 strideList(k).(raw_sensor_outputs{nm}) = Data(InitStance(k):InitStance(k+1)-1,nm);
-%                 strideList(k).(raw_sensor_outputs{nm}) = Data(InitStance(k):InitStance(k+1),nm);
+            %                 strideList(k).(raw_sensor_outputs{nm}) = Data(InitStance(k):InitStance(k+1),nm);
+            else
+                strideList(k).(raw_sensor_outputs{nm}) = Data(InitStance(k):end,nm);
             end
         end
     end
