@@ -154,8 +154,7 @@ data_in = data_in2;
 data_in(stPF,7)=2; data_in(edPF,7)=3;
 data_in(stPF2,14)=2; data_in(edPF2,14)=3;
 
-FootStrAll1 = romanFunction(data_in);
-FootStrAll2 = romanFunction([data_in(:,8:14) data_in(:,1:7)]);
+FootStrAll = romanFunction(data_in);
 % for iters = 1:10
 %     TWO_FEET = mod(
 STRIDE_MARKER = 1;
@@ -170,7 +169,6 @@ for tf = 1:2
         stMark2 = find(data_in(:,14)==STRIDE_MARKER);
         select_labels = labels1;
         strides_to_delete = strides_to_delete1;
-        FootStrAll = FootStrAll1;
         if ft==2
             %         stMark1 = z2;
             %         stMark2 = z;
@@ -178,17 +176,16 @@ for tf = 1:2
             stMark2 = stMark1;
             strides_to_delete = strides_to_delete2;
             select_labels = labels2;
-            FootStrAll = FootStrAll2;
         end
-            stridesAll = FootStrAll.F1;
-            stridesAllOther = FootStrAll.F2;
+        %     stridesAll = FootStrAll.([foot_names{ft}]);
+        %     stridesAllOther = FootStrAll.([foot_names{setdiff(1:2,ft)}]);
         
         last_lab = select_labels(end);
         select_labels = select_labels(2:end); %***have labels as next startPF
         cvIndices = crossvalind('Kfold',min([length(stMark1), length(stMark2)])-2,FOLDS, 'Min',3);
         
-%         stridesAll = FootStrAll.([foot_names{ft}]);
-%         stridesAllOther = FootStrAll.([foot_names{setdiff(1:2,ft)}]);
+        stridesAll = FootStrAll.([foot_names{ft}]);
+        stridesAllOther = FootStrAll.([foot_names{setdiff(1:2,ft)}]);
         
         for cv = 1:FOLDS
             sample_strides = find(any(cvIndices == setdiff(1:FOLDS,cv),2));
@@ -203,6 +200,9 @@ for tf = 1:2
                 data_train = [data_train; data_in(stMark1(ii):stMark1(ii+1)-1,:)];
             end
             
+            tslab = select_labels(test_strides);
+            trlab = select_labels(sample_strides);
+            
             data_test = [];
             labtest2 = [];
             st_start_idx = 1;
@@ -211,53 +211,70 @@ for tf = 1:2
                 data_test = [data_test; data_in(stMark1(jj):stMark1(jj+1)-1,:)];
                 st_start_idx = [st_start_idx st_start_idx(end) + ...
                     size(data_in(stMark1(jj):stMark1(jj+1)-1,:),1)];
+                labtest2 = [labtest2; repmat(tslab(j),[length(stMark1(jj):stMark1(jj+1)-1),1])];
             end
             % add last stride to data_test
             %         data_test = [data_test; data_in(stMark1(jj+1):end,:)];
             
-            if ft == 1
-                FootSt = romanFunction(data_train);
-            else
-                FootSt = romanFunction([data_train(:,8:14) data_train(:,1:7)]);
-            end
-            strides = FootSt.F1;
-            stridesOther = FootSt.F2;
+            
+            FootSt = romanFunction(data_train);
+            strides = FootSt.([foot_names{ft}]);
+            stridesOther = FootSt.([foot_names{setdiff(1:2,ft)}]);
             
             %         tslab = [select_labels(test_strides); last_lab];
-            tslab = select_labels(test_strides);
-            trlab = select_labels(sample_strides);
+
             
             %         plot rolling
-%             figure;
-%             datplot = data_test(:,[1:6,8:13]);
-%             stride_loc = find(data_test(:,7)==1);
-%             plot(datplot(:,1))
-%             hold on
-%             scatter(stride_loc, tslab*2000)
-%             title('Rolling prediction training and labels');
+            %             figure;
+            %             datplot = data_test(:,[1:6,8:13]);
+            %             stride_loc = find(data_test(:,7)==1);
+            %             plot(datplot(:,1))
+            %             hold on
+            %             scatter(stride_loc, tslab*2000)
+            %             title('Rolling prediction training and labels');
             
             %         plot non-rolling
-%             figure
+            %             figure
             
             stridesAllTest = stridesAll(test_strides);
             stridesAllOtherTest = stridesAllOther(test_strides);
-%             iter = 1;
-%             for i =1:length(stridesAllTest)
-%                 hold on
-%                 local_t = iter:length(stridesAllTest(i).a1Raw)+iter-1;
-%                 plot(local_t, stridesAllTest(i).a1Raw);
-%                 scatter(local_t(1), tslab(i)*2000)
-%                 iter = length(stridesAllTest(i).a1Raw)+iter;
-%             end
-%             title('Static prediction training and labels');
-            
+            if plot_pts
+                tr_strides = [find(data_train(:,7*ft)==STRIDE_MARKER); length(data_train)];
+                cycle_time_train = tr_strides(2:end) - tr_strides(1:end-1);
+
+                color_mat = {'r','g','b'};
+                for iter1 = 1:length(prediction_signals)
+                    iter = 1;
+                    figure(iter1)
+                    subplot(1,2,1)
+                    for i =1:length(stridesAllTest)
+                        hold on
+                        cycle_time = length(stridesAllTest);
+                        window_start = round(.6*cycle_time);
+                        window_end = window_start + 10;
+                        local_t = iter:length(stridesAllTest(i).(prediction_signals{iter1}))+iter-1;
+                        plot(local_t(window_start:window_end), stridesAllTest(i).(prediction_signals{iter1})(window_start:window_end),color_mat{tslab(i)});
+%                         scatter(local_t(1), tslab(i))
+                        iter = length(stridesAllTest(i).(prediction_signals{iter1}))+iter;
+                        if TWO_FEET
+                            for i = 1:length(stridesAllOtherTest)
+                                hold on
+                                local_t = iter:length(stridesAllOtherTest(i).(prediction_signals{iter1}))+iter-1;
+                                plot(local_t, stridesAllTest(i).(prediction_signals{iter1}),color_mat{tslab(i)});
+%                                 scatter(local_t(1), tslab(i)*2000)
+                                iter = length(stridesAllTest(i).(prediction_signals{iter1}))+iter;
+                            end
+                        end
+                    end
+%                     title('Static prediction training and labels');
+                    title(prediction_signals{iter1})
+                end
+            end
             % train
             stridesStatic = stridesAll(sample_strides);
             stridesOtherStatic = stridesAllOther(sample_strides);
             ftmat_train_static = createFeatureMatrix2(stridesStatic, stridesOtherStatic, prediction_signals, TWO_FEET);
             ftmat_train = createFeatureMatrix2(strides, stridesOther, prediction_signals, TWO_FEET);
-            
-            % add in HS magnitude
             
             rperm = randperm(size(ftmat_train,1));
             ftmat_train = ftmat_train(rperm,:);
@@ -288,51 +305,64 @@ for tf = 1:2
             start = 1;
             gp_mat = {'r','g','b'};
             gp_matOther = {'m','c','y'};
+            ts_lab = [];
+            pts_HS = [];
             for pt_idx = 1:size(data_test,1)
                 pt_in = data_test(pt_idx,:);
-                stride_check = ft*7;
+                pt_in = [pt_in(1:6),0,pt_in(8:13),0];
+                
                 data_pred = [data_pred; pt_in];
                 if pt_idx == 1
+                    data_pred(7*ft) = 1;
                     continue
                 end
                 
-                
-                if pt_in(stride_check)==STRIDE_MARKER || pt_idx == size(data_test,1)
-                    x=1;
-                    FtMat = romanFunction(data_pred(1:end-1,:));
-                    stridesTest = FtMat.([foot_names{ft}]);
-                    stridesTestOther = FtMat.([foot_names{setdiff(1:2,ft)}]);
-                    ftmat_test = createFeatureMatrix2(stridesTest, stridesTestOther, prediction_signals, TWO_FEET);
-                    
-                    guess = predict(Mdl, ftmat_test);
-                    data_pred = [pt_in];
-                    guess_vec = [guess_vec; guess];
-                    if all(ftmat_test ~= ftmat_test_nr(labiter,:))
-                        disp('unequal matrices')
-                    end
-                    if plot_pts
-                        local_t = start:length(stridesTest.a1Raw)+start-1;
-                        local_tOther = start:length(stridesTestOther.a1Raw)+start-1;
-                        for iter =1:length(prediction_signals)
-                            figure(iter);
-                            hold on;
-                            window_start = round(.6*length(stridesTest.a1Raw));
-                            window_end = window_start + 10;
-                            plot(local_t(window_start:window_end),stridesTest.(prediction_signals{iter})(window_start:window_end),gp_mat{tslab(labiter)})
-                            if TWO_FEET
-                                window_start0 = 30;
-                                window_end0 = window_start0 + 10;
-                                plot(local_tOther(window_start0:window_end0),stridesTestOther.(prediction_signals{iter})(window_start0:window_end0),[gp_mat{tslab(labiter)} '--'])
-                                legend('Foot Pred','Foot Other')
+                if size(data_pred,1)> 90
+                    stride_check = (ft-1)*7 +1 : (ft-1)*7 + 3;
+                    rpt = sqrt(sum(pt_in(stride_check).^2));
+                    r = sqrt(sum(data_pred(1:end-1,stride_check).^2,2));
+                    if rpt > prctile(r,90)
+                        cycle_time_tst = size(data_pred,1);
+                        data_pred(round(.6*cycle_time_tst),setdiff([7,14],ft*7)) = 1;
+                        pts_HS = [pts_HS, pt_idx];
+                        tslab(labiter) = labtest2(pt_idx);
+                        %                 if pt_in(stride_check)==STRIDE_MARKER || pt_idx == size(data_test,1)
+                        FtMat = romanFunction(data_pred(1:end-1,:));
+                        stridesTest = FtMat.([foot_names{ft}]);
+                        stridesTestOther = FtMat.([foot_names{setdiff(1:2,ft)}]);
+                        ftmat_test = createFeatureMatrix2(stridesTest, stridesTestOther, prediction_signals, TWO_FEET);
+                        
+                        guess = predict(Mdl, ftmat_test);
+                        data_pred = [pt_in];
+                        data_pred(ft*7) = 1;
+                        guess_vec = [guess_vec; guess];
+%                         if all(ftmat_test ~= ftmat_test_nr(labiter,:))
+%                             disp('unequal matrices')
+%                         end
+                        if plot_pts
+                            local_t = start:length(stridesTest.a1Raw)+start-1;
+                            local_tOther = start:length(stridesTestOther.a1Raw)+start-1;
+                            for iter =1:length(prediction_signals)
+                                figure(iter);
+                                subplot(1,2,2)
+                                hold on;
+                                window_start = round(.6*length(stridesTest.a1Raw));
+                                window_end = window_start + 10;
+                                plot(local_t(window_start:window_end),stridesTest.(prediction_signals{iter})(window_start:window_end),gp_mat{tslab(labiter)})
+                                if TWO_FEET
+                                    window_start0 = 30;
+                                    window_end0 = window_start0 + 10;
+                                    plot(local_tOther(window_start0:window_end0),stridesTestOther.(prediction_signals{iter})(window_start0:window_end0),[gp_mat{tslab(labiter)} '--'])
+                                    legend('Foot Pred','Foot Other')
+                                end
+                                title(prediction_signals{iter})
+                                hold on;
+                                ax = gca;
                             end
-                            title(prediction_signals{iter})
-                            hold on;
-                            ax = gca;
                         end
+                        start = length(stridesTest.a1Raw)+start;
+                        labiter = labiter+1;
                     end
-                    start = length(stridesTest.a1Raw)+start;
-                    labiter = labiter+1;
-                    
                 end
             end
             acc = sum(guess_vec==tslab)/length(guess_vec);
@@ -366,7 +396,7 @@ end
 figure;
 plot(data_in2(:,1))
 hold on
-scatter(find(data_in2(:,7)==1), [labels1(2:end); 0].*ones([length(find(data_in2(:,7)==1)),1]),'Filled','r'); hold on; 
+scatter(find(data_in2(:,7)==1), [labels1(2:end); 0].*ones([length(find(data_in2(:,7)==1)),1]),'Filled','r'); hold on;
 scatter(find(data_in2(:,end)==1),[labels2(2:end); 0].*ones([length(find(data_in2(:,end)==1)),1]),'Filled','g')
 stMark1 = find(data_in2(:,7)==1);
 stMark2 = find(data_in2(:,end)==1);

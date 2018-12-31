@@ -52,18 +52,11 @@ prediction_signals = ['aAccY','aAccZ','aOmegaX','d1aAccY','d1aAccZ','d1aOmegaX',
 
 for foot = 1:2
     InitStance = find(data(:,foot*7)==1);
-    if foot == 1
-        start_data = InitStance;
-    end
-    InitStance(InitStance<start_data(1)) = [];
-    if length(start_data)>length(InitStance)
-        InitStance = [InitStance; length(data)];
-    end
-    cycle_time = start_data(2:end) - start_data(1:end-1);
+    cycle_time = InitStance(2:end) - InitStance(1:end-1);
     
     %     InitSwing = find(data(:,foot*7)==3);
-%     InitPF = InitStance(1:end-1) + round(.3*cycle_time);
-    InitSwing = InitStance(1:end-1) - round(.4*cycle_time);
+    InitPF = InitStance(1:end-1) + round(.3*cycle_time);
+    InitSwing = InitStance(1:end-1) + round(.6*cycle_time);
     if foot == 1
         Data = data(:,[1,2,3,4,5,6]);
     else
@@ -86,37 +79,24 @@ for foot = 1:2
         
         %     names = {'aAccX','aAccY','aAccZ','gVelX','gVelY','gVelZ'};
         for nm = 1:length(raw_sensor_outputs)
-            for k = 1:length(start_data)
+            for k = 1:length(InitStance)
                 % foot = 1 : 1:6; foot = 2: 8:13
-                if k <= length(InitStance)
-                    strideList(k).globalInitStanceSample = InitStance(k);
-                    strideList(k).HSmag = sqrt((Data(InitStance(k),1).^2 + Data(InitStance(k),2).^2)...
-                        +Data(InitStance(k),3).^2);
-                    if k < length(InitStance)
-                        strideList(k).globalInitSwingSample = InitSwing(k);
-                    end
-                end
-                if k < length(start_data)
-%                     strideList(k).globalInitSwingSample = InitSwing(k);
-                    strideList(k).(raw_sensor_outputs{nm}) = Data(start_data(k):start_data(k+1)-1,nm);
+                strideList(k).globalInitStanceSample = InitStance(k);
+                strideList(k).HSmag = sqrt((Data(InitStance(k),1).^2 + Data(InitStance(k),2).^2)...
+                    +Data(InitStance(k),3).^2);
+                
+                if k < length(InitStance)
+                    strideList(k).globalInitSwingSample = InitSwing(k);
+                    strideList(k).(raw_sensor_outputs{nm}) = Data(InitStance(k):InitStance(k+1)-1,nm);
                     %                 strideList(k).(raw_sensor_outputs{nm}) = Data(InitStance(k):InitStance(k+1),nm);
                 else
-                    strideList(k).(raw_sensor_outputs{nm}) = Data(start_data(k):end,nm);
+                    strideList(k).(raw_sensor_outputs{nm}) = Data(InitStance(k):end,nm);
                 end
             end
         end
     end
     lenStrideList = length(strideList);
-%     rawsiglen = 0;
-%     cumulen = [];
-%     heel_strike = [];
-%     swing = [];
-%     for kk = 1:lenStrideList
-%         rawsiglen = rawsiglen + length(strideList(kk).a1Raw);
-%         cumulen = [cumulen; rawsiglen];
-%         heel_strike(kk) = strideList(kk).globalInitStanceSample;
-%         swing(kk) = strideList(kk).globalInitSwingSample;
-%     end
+    
 %     disp('Calculating integrals and derivatives...');
     
     scale_factors = {ACCEL_LSB_PER_MPS2, -1.0*ACCEL_LSB_PER_MPS2, ACCEL_LSB_PER_MPS2, ...

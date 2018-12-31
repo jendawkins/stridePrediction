@@ -20,6 +20,7 @@ function [feature_matrix] = createFeatureMatrix2(strideList, strideListOther, pr
     
 %     handles.axes1 = axes;
 %     set(handles.axes1, 'NextPlot', 'add');
+    lone_sig = [];
     for i=1:lenStrideList
         
 %         window_start = strideList(i).globalFootStaticSample - strideList(i).globalInitStanceSample + 1;
@@ -33,11 +34,19 @@ function [feature_matrix] = createFeatureMatrix2(strideList, strideListOther, pr
 %         labs = labels_train(start:lsend-1);
         start = lsend(end);
         
-        
+        lone_iter = 1;
+        delj = [];
         for jj=1:length(jrange)
             j = jrange(jj);
             
             cycle_time = length(strideList(i).(prediction_signals{iter}));
+            
+            
+            if cycle_time == 1
+                lone_sig(i,lone_iter) = strideList(i).(prediction_signals{iter});
+                lone_iter = lone_iter+1;
+                delj = [delj, j];
+            else
             % start after planatar flexion
 %             window_start = 1; 
 %             window_end = round(.6*cycle_time - POST_SWING_CUTOFF_SAMPLES);
@@ -54,7 +63,7 @@ function [feature_matrix] = createFeatureMatrix2(strideList, strideListOther, pr
             maxs(i,j) = max(strideList(i).(prediction_signals{iter})(window_start:window_end));
             mins(i,j) = min(strideList(i).(prediction_signals{iter})(window_start:window_end));            
             ranges(i,j) = range(strideList(i).(prediction_signals{iter})(window_start:window_end));
-            
+            end
 %             if plot_pts
 %                 figure(iter);
 %                 hold on;
@@ -96,16 +105,31 @@ function [feature_matrix] = createFeatureMatrix2(strideList, strideListOther, pr
                 
 %                 window_start = strideListOther(i).globalFootStaticSample - strideListOther(i).globalInitStanceSample + 1;
 %                 window_end = strideListOther(i).globalInitSwingSample - strideListOther(i).globalInitStanceSample + POST_SWING_CUTOFF_SAMPLES;
-
+                if cycle_time == 1
+                    lone_sig(i,lone_iter) = strideListOther(i).(prediction_signals{iter});
+                    lone_iter = lone_iter+1;
+                    delj = [delj, j];
+                else
                 means(i,j+1) = mean(strideListOther(i).(prediction_signals{iter})(window_start:window_end));
                 maxs(i,j+1) = max(strideListOther(i).(prediction_signals{iter})(window_start:window_end));
                 mins(i,j+1) = min(strideListOther(i).(prediction_signals{iter})(window_start:window_end));
                 ranges(i,j+1) = range(strideListOther(i).(prediction_signals{iter})(window_start:window_end));
+            
+                end
             end
             iter = iter+1;
         end
     end
-    feature_matrix = [maxs, mins, ranges];
+    if ~isempty(lone_sig)
+
+    end
+    maxs(:,delj)=[]; mins(:,delj) = []; ranges(:,delj) = [];
+    feature_matrix = [maxs, mins, ranges, lone_sig];
+%     feature_matrix = [maxs(:,1:end-size(lone_sig,2)), mins(:,1:end-size(lone_sig,2)), ...
+%         ranges(:,1:end-size(lone_sig,2)), lone_sig];
+%     if size(feature_matrix,2)>30
+%         x = 'debug';
+%     end
     
 %     rperm = randperm(lenStrideList);
 %     randomized_feature_matrix = feature_matrix(rperm,:);
