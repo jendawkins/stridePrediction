@@ -193,7 +193,7 @@ for tf = 1:2
 %         sample_strides = setdiff(sample_strides, strides_to_delete);
         test_strides = find(cvIndices == cv);
 %         test_strides = setdiff(test_strides, strides_to_delete);
-        
+        tslab = select_labels(test_strides);
         % split training testing
         data_train = [];
         for i = 1:length(sample_strides)
@@ -233,6 +233,7 @@ for tf = 1:2
         for j = 1:length(test_strides)
             jj = test_strides(j);
             data_test = [data_test; data_in(stMark1(jj):stMark1(jj+1)-1,:)];
+            labtest2 = [labtest2; repmat(tslab(j),[length(stMark1(jj):stMark1(jj+1)-1),1])];
         end
         % add last stride to data_test
 %         data_test = [data_test; data_in(stMark1(jj+1):end,:)];
@@ -247,6 +248,7 @@ for tf = 1:2
         LRlabels_ts = [LRlabels_ts zeros(1,mod(-length(LRlabels_ts),NUM_INPUT_TIMES))];
         label_idx = 1:NUM_INPUT_TIMES:length(LRlabels_ts);
         LRlabels_ts4 = LRlabels_ts(label_idx);
+        labtest_terrain = labtest2(label_idx);
         
         if TWO_FEET
             feature_val = data_test(:,[1:6,8:13]);
@@ -272,20 +274,22 @@ for tf = 1:2
         guess_vec = [];
         data_pred = [];
         mse_loss = 0;
-        if cv == 1
-%             subplot(2,2,iter)
-            figure
-            iter = iter+1;
-            plot([0 1],[0 1]);
-            hold on;
-            xlabel('Actual cycle time')
-            ylabel('Predicted cycle time')
-            axis([0 1 -inf inf])
-        end
+%         if cv == 1
+% %             subplot(2,2,iter)
+%             figure
+%             iter = iter+1;
+%             plot([0 1],[0 1]);
+%             hold on;
+%             xlabel('Actual cycle time')
+%             ylabel('Predicted cycle time')
+%             axis([0 1 -inf inf])
+%         end
         pl = 1;
         pts_pred = [];
         pred_times = [];
+        labels_fin = [];
         tst_cycles = [mean(testCycles); testCycles];
+        iter = 1;
         for pt_idx = 1:size(data_test,1)
             if LRlabels_ts(pt_idx)== 0
                 col = rand(1,3);
@@ -302,20 +306,51 @@ for tf = 1:2
 %                 pts_pred = pts_pred*tst_cycles(pl);
                 pred_time = predict(net, pts_pred);
                 pts_pred = [];
-                mse_loss = mse_loss + (LRlabels_ts(pt_idx) - pred_time).^2;
-                if cv==1
-                    scatter(LRlabels_ts(pt_idx), pred_time, 10, col);      
-                end
+                mse_loss = mse_loss + (LRlabels_ts(iter) - pred_time).^2;
+%                 if cv==1
+%                     scatter(LRlabels_ts(pt_idx), pred_time, 10, col);      
+%                 end
                 pred_times = [pred_times; pred_time];
+                labels_fin = [labels_fin; LRlabels_ts4(iter)];
+                iter = iter+1;
             end
         end
 %         legend(p)
-        tvec = {'One Foot Training','Two Feet Training'};
-        title(['Fold ' num2str(cv), ', Foot ' num2str(ft) ', ' tvec{tf}])
-        mse_loss_t = mse_loss / size(data_test,1);
+        if cv == 1
+            gps = {'Upstairs','Downstairs','Level Ground'};
+            z_labels = find(labtest_terrain==0);
+            pred_times(z_labels) = []; labels_fin(z_labels) = [];
+            labtest_terrain(z_labels) = [];
+            figure(tf)
+            tvec = {'One Foot Training','Two Feet Training'};
+            plot([0,1],[0,1],'k','LineWidth',2)
+            hold on
+            gscatter(labels_fin, pred_times, gps(round(labtest_terrain(1:length(labels_fin))))');  
+            xlabel('Actual cycle time')
+            ylabel('Predicted cycle time')
+            title([tvec{tf}])
+            axis([0 1 -inf inf])
+        end
+%         tvec = {'One Foot Training','Two Feet Training'};
+%         title(['Fold ' num2str(cv), ', Foot ' num2str(ft) ', ' tvec{tf}])
+        mse_loss_t(cv) = mse_loss / size(data_test,1);
     end
+    mse_tot(ft,:) = mse_loss_t;
   
-end
+    end
+    figure(3);
+    ax(tf) = subplot(1,2,tf);
+    tvec = {'One Foot Training','Two Feet Training'};
+    
+    plot(mse_tot(1,:))
+    hold on
+    plot(mse_tot(2,:))
+    title(tvec{tf})
+%     axis([-inf inf -inf inf])
+    xlabel('Cross Val Folds')
+    ylabel('MSE Loss')
+    legend('Foot L', 'Foot R')
+    xticklabels(1:FOLDS)
 
 end
-
+linkaxes([ax(1),ax(2)],'xy')

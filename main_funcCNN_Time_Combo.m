@@ -158,7 +158,7 @@ data_in(stPF2,14)=2; data_in(edPF2,14)=3;
 %     TWO_FEET = mod(
 STRIDE_MARKER = 1;
 NUM_INPUT_TIMES = 11;
-
+% mse_tot = zeros(2);
 for tf = 1:2
     TWO_FEET = tf-1;
     accvec = [];
@@ -317,10 +317,11 @@ for tf = 1:2
             disp(['Fold ' num2str(cv)])
             disp(CTest)
             
+            mse_loss(cv) = sum((labels_ts_fin' - time_guess).^2)/length(time_guess);
             if ft == 1
                 figure(tf)
                 tvec = {'One Foot Training','Two Feet Training'};
-                plot([0,1],[0,1])
+                plot([0,1],[0,1],'k','LineWidth',2)
                 hold on
                 gscatter(labels_ts_fin', time_guess, round(labtest22));  
                 xlabel('Actual cycle time')
@@ -448,6 +449,7 @@ for tf = 1:2
             accv(cv) = accTest;
             cv = cv+1;
         end
+        mse_tot(ft,:) = mse_loss;
         Cstruct.(['Foot' num2str(ft)]).(['Fold' num2str(cv)]) = CTest;
         accvec.(['Foot' num2str(ft)]) = accv;
         
@@ -465,8 +467,26 @@ for tf = 1:2
     ylabel('Testing Accuracy')
     legend('Foot L', 'Foot R')
     xticklabels(1:FOLDS)
+    
+    
+    figure(4);
+    ax(tf) = subplot(1,2,tf);
+    tvec = {'One Foot Training','Two Feet Training'};
+    
+    plot(mse_tot(1,:))
+    hold on
+    plot(mse_tot(2,:))
+    title(tvec{tf})
+    axis([-inf inf -inf inf])
+    xlabel('Cross Val Folds')
+    ylabel('MSE Loss')
+    legend('Foot L', 'Foot R')
+    xticklabels(1:FOLDS)
+    mse_tot_tot(tf,:,:) = mse_tot;
 end
-
+linkaxes([ax(1),ax(2)],'xy')
+%  set(ax(1), 'Position', [1 5 0 0.07]);
+%  set(ax(2), 'Position', get(ax(1), 'Position'));
 %% plot data
 figure;
 plot(data_in2(:,1))

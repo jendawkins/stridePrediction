@@ -18,6 +18,7 @@ POST_SWING_CUTOFF_SAMPLES = int32(POST_SWING_CUTOFF_TIME_S * SAMPLE_RATE_HZ);
 
 TWO_FEET = 0;
 FOLDS = 5;
+WINDOW_SIZE = 10;
 
 % inverse_kinematics_outputs = {'r0','r1','r2','r3','gAccY','gAccZ','gVelY','gVelZ','gPosY','gPosZ'};
 % prediction_signals = ['aAccY','aAccZ','aOmegaX','d1aAccY','d1aAccZ','d1aOmegaX','i1aAccY','i1aAccZ','i1aOmegaX',inverse_kinematics_outputs];
@@ -154,8 +155,8 @@ data_in = data_in2;
 data_in(stPF,7)=2; data_in(edPF,7)=3;
 data_in(stPF2,14)=2; data_in(edPF2,14)=3;
 
-FootStrAll1 = romanFunction(data_in);
-FootStrAll2 = romanFunction([data_in(:,8:14) data_in(:,1:7)]);
+% FootStrAll1 = romanFunction(data_in);
+% FootStrAll2 = romanFunction([data_in(:,8:14) data_in(:,1:7)]);
 % for iters = 1:10
 %     TWO_FEET = mod(
 STRIDE_MARKER = 1;
@@ -170,7 +171,7 @@ for tf = 1:2
         stMark2 = find(data_in(:,14)==STRIDE_MARKER);
         select_labels = labels1;
         strides_to_delete = strides_to_delete1;
-        FootStrAll = FootStrAll1;
+%         FootStrAll = FootStrAll1;
         if ft==2
             %         stMark1 = z2;
             %         stMark2 = z;
@@ -178,10 +179,10 @@ for tf = 1:2
             stMark2 = stMark1;
             strides_to_delete = strides_to_delete2;
             select_labels = labels2;
-            FootStrAll = FootStrAll2;
+%             FootStrAll = FootStrAll2;
         end
-            stridesAll = FootStrAll.F1;
-            stridesAllOther = FootStrAll.F2;
+%             stridesAll = FootStrAll.F1;
+%             stridesAllOther = FootStrAll.F2;
         
         last_lab = select_labels(end);
         select_labels = select_labels(2:end); %***have labels as next startPF
@@ -197,10 +198,12 @@ for tf = 1:2
             test_strides = setdiff(test_strides, strides_to_delete);
             
             % split training testing
+            labtrain2 = [];
             data_train = [];
             for i = 1:length(sample_strides)
                 ii = sample_strides(i);
                 data_train = [data_train; data_in(stMark1(ii):stMark1(ii+1)-1,:)];
+                labtrain2 = [labtrain2; repmat(select_labels(ii),[length(stMark1(ii):stMark1(ii+1)-1),1])];
             end
             
             data_test = [];
@@ -209,23 +212,24 @@ for tf = 1:2
             for j = 1:length(test_strides)
                 jj = test_strides(j);
                 data_test = [data_test; data_in(stMark1(jj):stMark1(jj+1)-1,:)];
-                st_start_idx = [st_start_idx st_start_idx(end) + ...
-                    size(data_in(stMark1(jj):stMark1(jj+1)-1,:),1)];
+%                 st_start_idx = [st_start_idx st_start_idx(end) + ...
+%                     size(data_in(stMark1(jj):stMark1(jj+1)-1,:),1)];
+                labtest2 = [labtest2; repmat(select_labels(jj),[length(stMark1(jj):stMark1(jj+1)-1),1])];
             end
             % add last stride to data_test
             %         data_test = [data_test; data_in(stMark1(jj+1):end,:)];
             
             if ft == 1
-                FootSt = romanFunction(data_train);
+                FootSt = romanFunction_Continuous(data_train);
             else
-                FootSt = romanFunction([data_train(:,8:14) data_train(:,1:7)]);
+                FootSt = romanFunction_Continuous([data_train(:,8:14) data_train(:,1:7)]);
             end
             strides = FootSt.F1;
             stridesOther = FootSt.F2;
             
             %         tslab = [select_labels(test_strides); last_lab];
-            tslab = select_labels(test_strides);
-            trlab = select_labels(sample_strides);
+%             tslab = select_labels(test_strides);
+%             trlab = select_labels(sample_strides);
             
             %         plot rolling
 %             figure;
@@ -239,8 +243,8 @@ for tf = 1:2
             %         plot non-rolling
 %             figure
             
-            stridesAllTest = stridesAll(test_strides);
-            stridesAllOtherTest = stridesAllOther(test_strides);
+%             stridesAllTest = stridesAll(test_strides);
+%             stridesAllOtherTest = stridesAllOther(test_strides);
 %             iter = 1;
 %             for i =1:length(stridesAllTest)
 %                 hold on
@@ -252,29 +256,32 @@ for tf = 1:2
 %             title('Static prediction training and labels');
             
             % train
-            stridesStatic = stridesAll(sample_strides);
-            stridesOtherStatic = stridesAllOther(sample_strides);
-            ftmat_train_static = createFeatureMatrix2(stridesStatic, stridesOtherStatic, prediction_signals, TWO_FEET);
-            ftmat_train = createFeatureMatrix2(strides, stridesOther, prediction_signals, TWO_FEET);
+%             stridesStatic = stridesAll(sample_strides);
+%             stridesOtherStatic = stridesAllOther(sample_strides);
+%             ftmat_train_static = createFeatureMatrix2(stridesStatic, stridesOtherStatic, prediction_signals, TWO_FEET);
+            ftmat_train = createFeatureMatrix2_Continuous(strides, stridesOther, prediction_signals, TWO_FEET, WINDOW_SIZE);
             
             % add in HS magnitude
             
             rperm = randperm(size(ftmat_train,1));
             ftmat_train = ftmat_train(rperm,:);
+            trlab = labtrain2(WINDOW_SIZE/2 + 1: end-(WINDOW_SIZE/2));
             tr_labels = trlab(rperm);
+            
+            tslab = labtest2(WINDOW_SIZE/2 + 1: end-(WINDOW_SIZE/2));
             
             Mdl = fitcdiscr(ftmat_train, tr_labels);
             
             % test non-rolling
-            ftmat_test_nr = createFeatureMatrix2(stridesAllTest, stridesAllOtherTest, prediction_signals, TWO_FEET);
-            guesses = predict(Mdl, ftmat_test_nr);
+%             ftmat_test_nr = createFeatureMatrix2(stridesAllTest, stridesAllOtherTest, prediction_signals, TWO_FEET, WINDOW_SIZE);
+%             guesses = predict(Mdl, ftmat_test_nr);
             
-            accTest = sum(guesses==tslab)/length(guesses);
-            CTest = confusion.getMatrix([tslab;1; 2; 3], [guesses; 3; 1; 2],0);
-            disp('static predictions')
-            disp(accTest)
-            disp(['Fold ' num2str(cv)])
-            disp(CTest)
+%             accTest = sum(guesses==tslab)/length(guesses);
+%             CTest = confusion.getMatrix([tslab;1; 2; 3], [guesses; 3; 1; 2],0);
+%             disp('static predictions')
+%             disp(accTest)
+%             disp(['Fold ' num2str(cv)])
+%             disp(CTest)
             
             
             % Testing
@@ -297,19 +304,16 @@ for tf = 1:2
                 end
                 
                 
-                if pt_in(stride_check)==STRIDE_MARKER || pt_idx == size(data_test,1)
+                if size(data_pred,1)>WINDOW_SIZE
                     x=1;
-                    FtMat = romanFunction(data_pred(1:end-1,:));
+                    FtMat = romanFunction_Continuous(data_pred);
                     stridesTest = FtMat.([foot_names{ft}]);
                     stridesTestOther = FtMat.([foot_names{setdiff(1:2,ft)}]);
-                    ftmat_test = createFeatureMatrix2(stridesTest, stridesTestOther, prediction_signals, TWO_FEET);
+                    ftmat_test = createFeatureMatrix2_Continuous(stridesTest, stridesTestOther, prediction_signals, TWO_FEET,WINDOW_SIZE);
                     
                     guess = predict(Mdl, ftmat_test);
-                    data_pred = [pt_in];
+                    data_pred = data_pred(2:end,:);
                     guess_vec = [guess_vec; guess];
-                    if all(ftmat_test ~= ftmat_test_nr(labiter,:))
-                        disp('unequal matrices')
-                    end
                     if plot_pts
                         local_t = start:length(stridesTest.a1Raw)+start-1;
                         local_tOther = start:length(stridesTestOther.a1Raw)+start-1;
@@ -337,7 +341,7 @@ for tf = 1:2
             end
             acc = sum(guess_vec==tslab)/length(guess_vec);
             C = confusion.getMatrix([tslab;1; 2; 3], [guess_vec; 3; 1; 2],0);
-            disp('Rolling predictions:')
+            disp('Rolling predictions Accuracy:')
             disp(acc)
             disp(['Fold ' num2str(cv)])
             disp(C)
