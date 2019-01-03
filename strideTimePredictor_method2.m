@@ -11,6 +11,7 @@ clear all
 % regression??
 
 % if two legs is better, how early to make prediction??
+USE_PREV_TIME= 1;
 plot_pts = 0;
 POST_SWING_CUTOFF_TIME_S=0.2;
 SAMPLE_RATE_HZ = 100;
@@ -155,7 +156,8 @@ data_in = data_in2;
 data_in(stPF,7)=2; data_in(edPF,7)=3;
 data_in(stPF2,14)=2; data_in(edPF2,14)=3;
 
-FootStrAll = romanFunction(data_in);
+FootStrAll1 = romanFunction(data_in);
+FootStrAll2 = romanFunction([data_in(:,8:14) data_in(:,1:7)]);
 % for iters = 1:10
 %     TWO_FEET = mod(
 STRIDE_MARKER = 1;
@@ -170,6 +172,7 @@ for tf = 1:2
         stMark2 = find(data_in(:,14)==STRIDE_MARKER);
         select_labels = labels1;
         strides_to_delete = strides_to_delete1;
+        FootStrAll = FootStrAll1;
         if ft==2
             %         stMark1 = z2;
             %         stMark2 = z;
@@ -177,16 +180,15 @@ for tf = 1:2
             stMark2 = stMark1;
             strides_to_delete = strides_to_delete2;
             select_labels = labels2;
+            FootStrAll = FootStrAll2;
         end
-        %     stridesAll = FootStrAll.([foot_names{ft}]);
-        %     stridesAllOther = FootStrAll.([foot_names{setdiff(1:2,ft)}]);
+            stridesAll = FootStrAll.F1;
+            stridesAllOther = FootStrAll.F2;
         
         last_lab = select_labels(end);
         select_labels = select_labels(2:end); %***have labels as next startPF
         cvIndices = crossvalind('Kfold',min([length(stMark1), length(stMark2)])-2,FOLDS, 'Min',3);
-        
-        stridesAll = FootStrAll.([foot_names{ft}]);
-        stridesAllOther = FootStrAll.([foot_names{setdiff(1:2,ft)}]);
+
         
         for cv = 1:FOLDS
             sample_strides = find(any(cvIndices == setdiff(1:FOLDS,cv),2));
@@ -220,11 +222,15 @@ for tf = 1:2
             HStest = [find(data_test(:,ft*7)==1); size(data_test,1)+1];
             testCycles = HStest(2:end)-HStest(1:end-1);
             
-            prevTestCycles = [mean(testCycles); testCycles];       
+            prevTestCycles = [mean(testCycles); testCycles];   
             
-            FootSt = romanFunction(data_train);
-            strides = FootSt.([foot_names{ft}]);
-            stridesOther = FootSt.([foot_names{setdiff(1:2,ft)}]);
+            if ft == 1
+                FootSt = romanFunction(data_train);
+            else
+                FootSt = romanFunction([data_train(:,8:14) data_train(:,1:7)]);
+            end
+            strides = FootSt.F1;
+            stridesOther = FootSt.F2;
             
             %         tslab = [select_labels(test_strides); last_lab];
             tslab = select_labels(test_strides);
@@ -291,7 +297,7 @@ for tf = 1:2
             gp_mat = {'r','g','b'};
             gp_matOther = {'m','c','y'};
             hold on
-            title([tvec{tf}])
+%             title([tvec{tf}])
             LRlabels_ts = [];
             pred_vec = [];
             labpt = [];
@@ -345,8 +351,10 @@ for tf = 1:2
                     labiter = labiter+1;
                 end
             end
+            pic_title = ['Possible Paper Figures/' deblank(strrep([date '_M2_linreg'],'-','_'))];
+
             gps = {'Upstairs','Downstairs','Level Ground'};
-            if ft ==1 && cv==1
+            if ft ==1 && cv == 1
 %                 labpt_names = gps(labpt);
 %                 figure
 %                 gscatter(LRlabels_ts', pred_vec', labpt_names');
@@ -360,6 +368,8 @@ for tf = 1:2
                 plot(1:length(guess_vec), [guess_vec,testCycles],'lineWidth',2)
                 legend('Predicted Cycle Times','Actual Cycle Times')
                 title(tvec{tf})
+                
+                saveas(gcf,[pic_title '_ft' num2str(tf) '.png'])
             end
             mseloss = sum((guess_vec-tslab).^2)/length(guess_vec);
             legend('Predicted Cycle Times','Actual Cycle Times')
@@ -388,8 +398,10 @@ for tf = 1:2
     xlabel('Cross Val Folds')
     ylabel('MSE Loss')
     legend('Foot L', 'Foot R')
+%     saveas(gcf,[pic_title '_mse.png'])
 end
 linkaxes([ax(1),ax(2)],'y')
+saveas(gcf,[pic_title '_mse.png'])
 %% plot data
 figure;
 plot(data_in2(:,1))

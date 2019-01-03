@@ -180,8 +180,8 @@ for tf = 1:2
             select_labels = labels2;
             FootStrAll = FootStrAll2;
         end
-            stridesAll = FootStrAll.F1;
-            stridesAllOther = FootStrAll.F2;
+        stridesAll = FootStrAll.F1;
+        stridesAllOther = FootStrAll.F2;
         
         last_lab = select_labels(end);
         select_labels = select_labels(2:end); %***have labels as next startPF

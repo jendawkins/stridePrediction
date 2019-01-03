@@ -154,7 +154,8 @@ data_in = data_in2;
 data_in(stPF,7)=2; data_in(edPF,7)=3;
 data_in(stPF2,14)=2; data_in(edPF2,14)=3;
 
-FootStrAll = romanFunction(data_in);
+FootStrAll1 = romanFunction(data_in);
+FootStrAll2 = romanFunction([data_in(:,8:14) data_in(:,1:7)]);
 % for iters = 1:10
 %     TWO_FEET = mod(
 STRIDE_MARKER = 1;
@@ -169,6 +170,7 @@ for tf = 1:2
         stMark2 = find(data_in(:,14)==STRIDE_MARKER);
         select_labels = labels1;
         strides_to_delete = strides_to_delete1;
+        FootStrAll = FootStrAll1;
         if ft==2
             %         stMark1 = z2;
             %         stMark2 = z;
@@ -176,6 +178,7 @@ for tf = 1:2
             stMark2 = stMark1;
             strides_to_delete = strides_to_delete2;
             select_labels = labels2;
+            FootStrAll = FootStrAll2;
         end
         %     stridesAll = FootStrAll.([foot_names{ft}]);
         %     stridesAllOther = FootStrAll.([foot_names{setdiff(1:2,ft)}]);
@@ -184,8 +187,8 @@ for tf = 1:2
         select_labels = select_labels(2:end); %***have labels as next startPF
         cvIndices = crossvalind('Kfold',min([length(stMark1), length(stMark2)])-2,FOLDS, 'Min',3);
         
-        stridesAll = FootStrAll.([foot_names{ft}]);
-        stridesAllOther = FootStrAll.([foot_names{setdiff(1:2,ft)}]);
+        stridesAll = FootStrAll.F1;
+        stridesAllOther = FootStrAll.F2;
         
         for cv = 1:FOLDS
             sample_strides = find(any(cvIndices == setdiff(1:FOLDS,cv),2));
@@ -305,9 +308,12 @@ for tf = 1:2
             start = 1;
             gp_mat = {'r','g','b'};
             gp_matOther = {'m','c','y'};
-            ts_lab = [];
+            tslab = [];
             pts_HS = [];
-            for pt_idx = 1:size(data_test,1)
+            data_all_pred = [];
+            pt_idx = 1;
+            while pt_idx <= size(data_test,1)
+%             for pt_idx = 1:size(data_test,1)
                 pt_in = data_test(pt_idx,:);
                 pt_in = [pt_in(1:6),0,pt_in(8:13),0];
                 
@@ -316,12 +322,19 @@ for tf = 1:2
                     data_pred(7*ft) = 1;
                     continue
                 end
-                
+                iterpt = 1;
                 if size(data_pred,1)> 90
                     stride_check = (ft-1)*7 +1 : (ft-1)*7 + 3;
                     rpt = sqrt(sum(pt_in(stride_check).^2));
-                    r = sqrt(sum(data_pred(1:end-1,stride_check).^2,2));
+                    
+                    if isempty(data_all_pred)
+                        r = sqrt(sum(data_pred(1:end-1,stride_check).^2,2));
+                    else
+                        r = sqrt(sum(data_all_pred(1:end-1,stride_check).^2,2));
+                    end
                     if rpt > prctile(r,90)
+                        rpt_vec(iterpt) = rpt;
+                        iterpt = iterpt+1;
                         cycle_time_tst = size(data_pred,1);
                         data_pred(round(.6*cycle_time_tst),setdiff([7,14],ft*7)) = 1;
                         pts_HS = [pts_HS, pt_idx];
@@ -333,6 +346,7 @@ for tf = 1:2
                         ftmat_test = createFeatureMatrix2(stridesTest, stridesTestOther, prediction_signals, TWO_FEET);
                         
                         guess = predict(Mdl, ftmat_test);
+                        data_all_pred = [data_all_pred; data_pred(1:end-1,:)];
                         data_pred = [pt_in];
                         data_pred(ft*7) = 1;
                         guess_vec = [guess_vec; guess];
@@ -365,8 +379,8 @@ for tf = 1:2
                     end
                 end
             end
-            acc = sum(guess_vec==tslab)/length(guess_vec);
-            C = confusion.getMatrix([tslab;1; 2; 3], [guess_vec; 3; 1; 2],0);
+            acc = sum(guess_vec==tslab')/length(guess_vec);
+            C = confusion.getMatrix([tslab';1; 2; 3], [guess_vec; 3; 1; 2],0);
             disp('Rolling predictions:')
             disp(acc)
             disp(['Fold ' num2str(cv)])
@@ -374,6 +388,12 @@ for tf = 1:2
             
             
             accv(cv) = acc;
+            
+            figure; 
+            plot(data_all_pred(:,1)); hold on
+            scatter(pts_HS,ones(size(pts_HS)),'*r')
+            scatter(find(data_test(:,7)==1),ones(size(find(data_test(:,7)==1))),'*g')
+
         end
         Cstruct.(['Foot' num2str(ft)]).(['Fold' num2str(cv)]) = C;
         accvec.(['Foot' num2str(ft)]) = accv;
