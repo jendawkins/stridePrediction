@@ -23,7 +23,7 @@ for i = 1:length(myFiles)
     if length(strfind(myFiles(i).name,'proc'))>0 | length(strfind(myFiles(i).name,'2018'))==0
         continue
     end
-    x = csvread(myFiles(i).name,2,1);
+    x = csvread([folder '/' myFiles(i).name],2,1);
 
     it = it +1;
     disp(myFiles(i).name)

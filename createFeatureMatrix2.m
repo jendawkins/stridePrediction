@@ -1,4 +1,4 @@
-function [feature_matrix] = createFeatureMatrix2(strideList, strideListOther, prediction_signals, two_feet)
+function [feature_matrix] = createFeatureMatrix2(strideList, strideListOther, prediction_signals, w_start, w_end, two_feet, cnn)
 
     POST_SWING_CUTOFF_SAMPLES = 15;
     if two_feet
@@ -21,6 +21,7 @@ function [feature_matrix] = createFeatureMatrix2(strideList, strideListOther, pr
 %     handles.axes1 = axes;
 %     set(handles.axes1, 'NextPlot', 'add');
     lone_sig = [];
+    data = [];
     for i=1:lenStrideList
         
 %         window_start = strideList(i).globalFootStaticSample - strideList(i).globalInitStanceSample + 1;
@@ -50,8 +51,9 @@ function [feature_matrix] = createFeatureMatrix2(strideList, strideListOther, pr
             % start after planatar flexion
 %             window_start = 1; 
 %             window_end = round(.6*cycle_time - POST_SWING_CUTOFF_SAMPLES);
-            window_start = round(.6*cycle_time);
-            window_end = window_start + 10;
+            window_start = round(w_start*cycle_time);
+            window_end = round(w_end*cycle_time);
+%             window_end = window_start + 10;
 %             window_end = cycle_time;
 %             window_start = strideList(i).globalFootStaticSample - strideList(i).globalInitStanceSample + 1;
 %             if i < lenStrideList
@@ -59,6 +61,12 @@ function [feature_matrix] = createFeatureMatrix2(strideList, strideListOther, pr
 %             else
 %                 window_end = size(data_train, 1);
 %             end
+            if cnn
+                sig1 = strideList(i).(prediction_signals{iter})(window_start:window_end);
+                data{i}(:,j,1) = sig1';
+
+%                 data(:,j,1,i) = strideList(i).(prediction_signals{iter})(window_start:window_end);
+            end
             means(i,j) = mean(strideList(i).(prediction_signals{iter})(window_start:window_end));
             maxs(i,j) = max(strideList(i).(prediction_signals{iter})(window_start:window_end));
             mins(i,j) = min(strideList(i).(prediction_signals{iter})(window_start:window_end));            
@@ -96,11 +104,12 @@ function [feature_matrix] = createFeatureMatrix2(strideList, strideListOther, pr
                 % start after planatar flexion
                 
                 % Start and second foot SWING
-                window_start = 1; 
+                window_start = round((w_start - .5)*cycle_time); 
 %                 window_end = round(.6*cycle_time - POST_SWING_CUTOFF_SAMPLES);
 %                   window_start = round(.6*cycle_time);
                    
-                  window_end = window_start + 10;
+%                   window_end = window_start + 10;
+                window_end = round((w_end-.5)*cycle_time);
 %                 window_end = cycle_time;
                 
 %                 window_start = strideListOther(i).globalFootStaticSample - strideListOther(i).globalInitStanceSample + 1;
@@ -110,6 +119,13 @@ function [feature_matrix] = createFeatureMatrix2(strideList, strideListOther, pr
                     lone_iter = lone_iter+1;
                     delj = [delj, j];
                 else
+                if cnn
+                    sig2 = strideListOther(i).(prediction_signals{iter})(window_start:window_end);
+                    sig2 = sig2(1:length(sig1));
+                   data{i}(:,j+1,1) = sig2;
+
+%                     data(:,j,1,i) = strideList(i).(prediction_signals{iter})(window_start:window_end);
+                end
                 means(i,j+1) = mean(strideListOther(i).(prediction_signals{iter})(window_start:window_end));
                 maxs(i,j+1) = max(strideListOther(i).(prediction_signals{iter})(window_start:window_end));
                 mins(i,j+1) = min(strideListOther(i).(prediction_signals{iter})(window_start:window_end));
@@ -120,11 +136,13 @@ function [feature_matrix] = createFeatureMatrix2(strideList, strideListOther, pr
             iter = iter+1;
         end
     end
-    if ~isempty(lone_sig)
 
-    end
     maxs(:,delj)=[]; mins(:,delj) = []; ranges(:,delj) = [];
-    feature_matrix = [maxs, mins, ranges, lone_sig];
+    if ~cnn
+        feature_matrix = [maxs, mins, ranges, lone_sig];
+    elseif cnn
+        feature_matrix = data;
+    end
 %     feature_matrix = [maxs(:,1:end-size(lone_sig,2)), mins(:,1:end-size(lone_sig,2)), ...
 %         ranges(:,1:end-size(lone_sig,2)), lone_sig];
 %     if size(feature_matrix,2)>30

@@ -18,7 +18,7 @@ POST_SWING_CUTOFF_SAMPLES = int32(POST_SWING_CUTOFF_TIME_S * SAMPLE_RATE_HZ);
 
 TWO_FEET = 0;
 FOLDS = 5;
-WINDOW_SIZE = 10;
+NUM_TIMEPOINTS_VEC = [3, 5, 9];
 
 % inverse_kinematics_outputs = {'r0','r1','r2','r3','gAccY','gAccZ','gVelY','gVelZ','gPosY','gPosZ'};
 % prediction_signals = ['aAccY','aAccZ','aOmegaX','d1aAccY','d1aAccZ','d1aOmegaX','i1aAccY','i1aAccZ','i1aOmegaX',inverse_kinematics_outputs];
@@ -30,11 +30,11 @@ foot_names= {'F1','F2'};
 dt = '22-Dec-2018';
 dbstop if error
 close all
-if exist([dt '-processed_data.csv'])==0
-    [data_fin] = process_data(pwd);
+if exist([dt '-processed_data 3.csv'])==0
+    [data_fin] = process_data2(pwd);
 else
-    load([dt '-processed_data.csv'])
-    data_fin = X22_Dec_2018_processed_data;
+    load([dt '-processed_data 3.csv'])
+    data_fin = X22_Dec_2018_processed_data_3;
 end
 new_time = data_fin(:,1);
 fin_mat3 = data_fin;
@@ -164,6 +164,8 @@ STRIDE_MARKER = 1;
 for tf = 1:2
     TWO_FEET = tf-1;
     accvec = [];
+    for nt = 1:NUM_TIMEPOINTS_VEC
+        WINDOW_SIZE = NUM_TIMEPOINTS_VEC(nt);
     for ft = 1:2 % foot 1 or 2
         %     stMark1 = z;
         %     stMark2 = z2;
@@ -259,16 +261,16 @@ for tf = 1:2
 %             stridesStatic = stridesAll(sample_strides);
 %             stridesOtherStatic = stridesAllOther(sample_strides);
 %             ftmat_train_static = createFeatureMatrix2(stridesStatic, stridesOtherStatic, prediction_signals, TWO_FEET);
-            ftmat_train = createFeatureMatrix2_Continuous(strides, stridesOther, prediction_signals, TWO_FEET, WINDOW_SIZE);
+            ftmat_train = createFeatureMatrix2_Continuous(strides, stridesOther, prediction_signals, TWO_FEET, WINDOW_SIZE,0);
             
             % add in HS magnitude
             
             rperm = randperm(size(ftmat_train,1));
             ftmat_train = ftmat_train(rperm,:);
-            trlab = labtrain2(WINDOW_SIZE/2 + 1: end-(WINDOW_SIZE/2));
+            trlab = labtrain2(round(WINDOW_SIZE/2): end-round(WINDOW_SIZE/2));
             tr_labels = trlab(rperm);
             
-            tslab = labtest2(WINDOW_SIZE/2 + 1: end-(WINDOW_SIZE/2));
+            tslab = labtest2(round(WINDOW_SIZE/2): end-round(WINDOW_SIZE/2));
             
             Mdl = fitcdiscr(ftmat_train, tr_labels);
             
@@ -309,7 +311,7 @@ for tf = 1:2
                     FtMat = romanFunction_Continuous(data_pred);
                     stridesTest = FtMat.([foot_names{ft}]);
                     stridesTestOther = FtMat.([foot_names{setdiff(1:2,ft)}]);
-                    ftmat_test = createFeatureMatrix2_Continuous(stridesTest, stridesTestOther, prediction_signals, TWO_FEET,WINDOW_SIZE);
+                    ftmat_test = createFeatureMatrix2_Continuous(stridesTest, stridesTestOther, prediction_signals, TWO_FEET,WINDOW_SIZE,0);
                     
                     guess = predict(Mdl, ftmat_test);
                     data_pred = data_pred(2:end,:);
@@ -349,21 +351,43 @@ for tf = 1:2
             
             accv(cv) = acc;
         end
+        mse_tot(ft,:) = accv;
         Cstruct.(['Foot' num2str(ft)]).(['Fold' num2str(cv)]) = C;
-        accvec.(['Foot' num2str(ft)]) = accv;
-        
+%         accvec.(['Foot' num2str(ft)]) = accv;
     end
-    subplot(1,2,tf)
-    tvec = {'One Foot Training','Two Feet Training'};
+        mse_tot_nt(:,:,nt) = mse_tot;
+        C_cell{nt} = Cstruct;
+    end
+    figure(2*nt+1);
+    ax(tf) = subplot(1,2,tf);
     
-    plot(accvec.Foot1)
-    hold on
-    plot(accvec.Foot2)
+    tvec = {'One Foot Training','Two Feet Training'};
+    ft_1 = squeeze(mse_tot_nt(1,:,:)); ft_2 = squeeze(mse_tot_nt(2,:,:));
     title(tvec{tf})
-    axis([-inf inf 0 1])
-    xlabel('Cross Val Folds')
-    ylabel('Testing Accuracy')
-    legend('Foot L', 'Foot R')
+    if size(mse_tot_nt,3)>1
+        axis([NUM_TIMEPOINTS_VEC(1) NUM_TIMEPOINTS_VEC(end) 0 1])
+%         [X,Y] = meshgrid(1:size(mse_tot_nt,2),1:size(mse_tot_nt,3));
+%         surf(X,Y,ft_1')
+        errorbar(NUM_TIMEPOINTS_VEC,mean(ft_1),std(ft_1));
+        hold on 
+        errorbar(NUM_TIMEPOINTS_VEC,mean(ft_2),std(ft_2));
+%         surf(X,Y,ft_2')
+        yticks(0:.1:1)
+        yticklabels(0:.1:1)
+        xticks(NUM_TIMEPOINTS_VEC)
+        xlabel('Number of Timpoints')
+        ylabel('Accuracy')
+        title([tvec{tf} ', Means over CV Folds'])
+    else
+
+        plot(mse_tot(1,:))
+        hold on
+        plot(mse_tot(2,:))
+        axis([1 FOLDS 0 1])
+        xlabel('Cross Val Folds')
+        ylabel('Accuracy')
+    end
+
 end
 
 %% plot data

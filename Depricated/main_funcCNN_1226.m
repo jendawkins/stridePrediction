@@ -19,6 +19,7 @@ POST_SWING_CUTOFF_SAMPLES = int32(POST_SWING_CUTOFF_TIME_S * SAMPLE_RATE_HZ);
 TWO_FEET = 0;
 FOLDS = 5;
 SYNC_STRIDES = 1;
+NUM_TIMEPOINTS = [3 11];
 % inverse_kinematics_outputs = {'r0','r1','r2','r3','gAccY','gAccZ','gVelY','gVelZ','gPosY','gPosZ'};
 % prediction_signals = ['aAccY','aAccZ','aOmegaX','d1aAccY','d1aAccZ','d1aOmegaX','i1aAccY','i1aAccZ','i1aOmegaX',inverse_kinematics_outputs];
 
@@ -151,8 +152,8 @@ NUM_INPUT_TIMES = 10;
 for tf = 1:2
     TWO_FEET = tf-1;
     accvec = [];
-    
-    
+    for nt = 1:length(NUM_TIMEPOINTS)
+    NUM_INPUT_TIMES = NUM_TIMEPOINTS(nt);
     layers = [ ...
         imageInputLayer([NUM_INPUT_TIMES (tf*6) 1]) % 4x6x1 --> 3x4x3 = 36
         convolution2dLayer([2 3],3)
@@ -355,6 +356,7 @@ for tf = 1:2
             accv(cv) = accTest;
             cv = cv+1;
         end
+    end
         Cstruct.(['Foot' num2str(ft)]).(['Fold' num2str(cv)]) = CTest;
         accvec.(['Foot' num2str(ft)]) = accv;
         
